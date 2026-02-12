@@ -45,7 +45,6 @@ const QuoteGenerator = () => {
     try {
       const response = await fetch('https://dummyjson.com/quotes/random');
       const data = await response.json();
-
       // Убеждаемся, что данные есть, прежде чем форматировать
       const qText = data.quote ? `"${formatSentence(data.quote)}"` : "No quote found";
       const aText = data.author ? `— ${data.author}` : "— Unknown";
@@ -84,7 +83,7 @@ const QuoteGenerator = () => {
 
   return (
     <div className="quote-app-container">
-      <style>{`
+      <style>{` 
         /* Сброс стандартных отступов Vite/Браузера */
         :global(body), :global(#root) {
           margin: 0 !important;
