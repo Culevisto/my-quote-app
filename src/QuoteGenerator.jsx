@@ -6,63 +6,80 @@ const QuoteGenerator = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isFading, setIsFading] = useState(false);
   const [copyText, setCopyText] = useState('Copy Quote');
-  
+
   const typingTimeoutRef = useRef(null);
 
-  const formatSentence = (text) => {
+  const formatSentence = (text = "") => {
     if (!text) return "";
     let lower = text.toLowerCase();
     return lower.replace(/(^\w|[\.\!\?]\s*\w)/g, (c) => c.toUpperCase());
   };
 
-  const typeText = (text, authorName) => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    
-    setIsTyping(true);
-    setQuote('');
-    setAuthor('');
-    
-    let index = 0;
-    const speed = 20;
+const typeText = (text = "", authorName = "") => {
+  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    const type = () => {
-      if (index < text.length) {
-        setQuote((prev) => prev + text[index]);
-        index++;
-        typingTimeoutRef.current = setTimeout(type, speed);
-      } else {
-        setIsTyping(false);
-        setAuthor(authorName);
-      }
-    };
-    type();
-  };
+  setIsTyping(true);
+  setQuote('');
+  setAuthor('');
 
-  const getQuote = async () => {
-    if (isTyping) return;
-    setIsFading(true);
+  let index = 0;
+  const speed = 20;
+  const safeText = String(text); // гарантируем строку
 
-    try {
-      const response = await fetch('https://dummyjson.com/quotes/random');
-      const data = await response.json();
-
-      // Убеждаемся, что данные есть, прежде чем форматировать
-      const qText = data.quote ? `"${formatSentence(data.quote)}"` : "No quote found";
-      const aText = data.author ? `— ${data.author}` : "— Unknown";
-
-      setTimeout(() => {
-        setIsFading(false);
-        typeText(qText, aText);
-        localStorage.setItem("lastQuote", qText);
-        localStorage.setItem("lastAuthor", aText);
-      }, 300);
-
-    } catch (error) {
-      setQuote('Failed to load quote. Please try again.');
-      setIsFading(false);
+  const type = () => {
+    if (index >= safeText.length) {
       setIsTyping(false);
+      setAuthor(authorName || "— Unknown");
+      return;
     }
+
+    setQuote((prev) => prev + safeText.charAt(index));
+    index++;
+
+    typingTimeoutRef.current = setTimeout(type, speed);
   };
+
+  type();
+};
+
+
+ const getQuote = async () => {
+  if (isTyping) return;
+  setIsFading(true);
+
+  try {
+    const response = await fetch('https://dummyjson.com/quotes/random');
+    const data = await response.json();
+
+    // Берём чистый текст
+    let cleanQuote = data?.quote ?? "";
+
+    // Удаляем случайный undefined если вдруг пришёл
+    cleanQuote = cleanQuote.replace(/undefined/g, "").trim();
+
+    // Форматируем
+    cleanQuote = formatSentence(cleanQuote);
+
+    // Добавляем кавычки безопасно
+    const qText = `"${cleanQuote}"`;
+    const aText = `— ${data?.author ?? "Unknown"}`;
+
+    setTimeout(() => {
+      setIsFading(false);
+      typeText(qText, aText);
+
+      localStorage.setItem("lastQuote", qText);
+      localStorage.setItem("lastAuthor", aText);
+    }, 300);
+
+  } catch (error) {
+    setQuote('Failed to load quote. Please try again.');
+    setAuthor('');
+    setIsFading(false);
+    setIsTyping(false);
+  }
+};
+
 
   useEffect(() => {
     const savedQuote = localStorage.getItem("lastQuote");
@@ -73,11 +90,15 @@ const QuoteGenerator = () => {
     } else {
       getQuote();
     }
+
     return () => clearTimeout(typingTimeoutRef.current);
   }, []);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(`${quote} ${author}`);
+    const textToCopy = `${quote} ${author}`.trim();
+    if (!textToCopy) return;
+
+    navigator.clipboard.writeText(textToCopy);
     setCopyText('Copied!');
     setTimeout(() => setCopyText('Copy Quote'), 1200);
   };
@@ -85,12 +106,11 @@ const QuoteGenerator = () => {
   return (
     <div className="quote-app-container">
       <style>{`
-        /* Сброс стандартных отступов Vite/Браузера */
-        :global(body), :global(#root) {
-          margin: 0 !important;
-          padding: 0 !important;
-          width: 100vw !important;
-          max-width: 100% !important;
+        body, #root {
+          margin: 0;
+          padding: 0;
+          width: 100vw;
+          max-width: 100%;
         }
 
         .quote-app-container {
@@ -100,8 +120,7 @@ const QuoteGenerator = () => {
           justify-content: center;
           align-items: center;
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          font-family: 'Arial', sans-serif; /* Вернул Arial */
-          margin: 0;
+          font-family: Arial, sans-serif;
           padding: 20px;
           box-sizing: border-box;
         }
@@ -151,7 +170,7 @@ const QuoteGenerator = () => {
           display: flex;
           gap: 15px;
           justify-content: center;
-          flex-wrap: wrap; /* Чтобы кнопки не вылезали на мобилках */
+          flex-wrap: wrap;
         }
 
         .btn {
@@ -191,15 +210,25 @@ const QuoteGenerator = () => {
           <p className={`quote ${isFading ? 'fade' : ''}`}>
             {quote}
           </p>
+
           <p className={`author ${isFading ? 'fade' : ''}`}>
-            {author}
+            {author || "— Unknown"}
           </p>
-          
+
           <div className="btn-group">
-            <button className="btn copy-btn" onClick={handleCopy} disabled={isTyping}>
+            <button
+              className="btn copy-btn"
+              onClick={handleCopy}
+              disabled={isTyping}
+            >
               {copyText}
             </button>
-            <button className="btn" onClick={getQuote} disabled={isTyping}>
+
+            <button
+              className="btn"
+              onClick={getQuote}
+              disabled={isTyping}
+            >
               New Quote
             </button>
           </div>
